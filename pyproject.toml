@@ -4,4 +4,10 @@ version = "0.1.0"
 description = "Анализатор страниц"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["flask", "python-dotenv", "gunicorn"]
+dependencies = [
+    "flask",
+ "python-dotenv",
+ "gunicorn",
+ "psycopg2-binary",
+ "validators",
+]
