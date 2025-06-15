@@ -11,18 +11,18 @@
   </head>
   <body>
     <div class="container mt-5">
-      <h1 class="text-center">Page Analyzer</h1>
+      <h1 class="text-center">Анализатор страниц</h1>
       <form action="{{ url_for('urls') }}" method="post" class="mt-4">
         <div class="mb-3">
           <input
             type="text"
             name="url"
             class="form-control"
-            placeholder="Enter URL"
+            placeholder="https://www.example.com"
             required
           />
         </div>
-        <button type="submit" class="btn btn-primary">Add URL</button>
+        <button type="submit" class="btn btn-primary">ПРОВЕРИТЬ</button>
       </form>
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %}
