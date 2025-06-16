@@ -6,8 +6,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "flask",
- "python-dotenv",
- "gunicorn",
- "psycopg2-binary",
- "validators",
+    "python-dotenv",
+    "gunicorn",
+    "psycopg2-binary",
+    "validators",
+    "requests",
 ]

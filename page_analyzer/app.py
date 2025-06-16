@@ -5,6 +5,8 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from urllib.parse import urlparse
 import validators
+import requests
+
 
 load_dotenv()
 
@@ -58,14 +60,15 @@ def urls():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT urls.*, MAX(url_checks.created_at) AS last_check
+                SELECT urls.*, MAX(url_checks.created_at) AS last_check,
+                    MAX(url_checks.status_code) AS last_status_code
                 FROM urls
                 LEFT JOIN url_checks ON urls.id = url_checks.url_id
                 GROUP BY urls.id
                 ORDER BY urls.created_at DESC
                 """
             )
-            urls = cur.fetchall()
+    urls = cur.fetchall()
     return render_template("urls.html", urls=urls)
 
 
@@ -76,8 +79,12 @@ def show_url(id):
             cur.execute("SELECT * FROM urls WHERE id = %s", (id,))
             url = cur.fetchone()
             cur.execute(
-                "SELECT id, created_at FROM url_checks WHERE url_id = "
-                "%s ORDER BY created_at DESC",
+                """
+                SELECT id, status_code, created_at
+                FROM url_checks
+                WHERE url_id = %s
+                ORDER BY created_at DESC
+                """,
                 (id,),
             )
             checks = cur.fetchall()
@@ -92,10 +99,30 @@ def create_check(id):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
+                # Получаем URL из базы данных
+                cur.execute("SELECT name FROM urls WHERE id = %s", (id,))
+                url = cur.fetchone()
+                if not url:
+                    flash("URL not found.", "danger")
+                    return redirect(url_for("urls"))
+
+                # Выполняем запрос к сайту
+                try:
+                    response = requests.get(f"http://{url['name']}")
+                    response.raise_for_status()
+                    status_code = response.status_code
+                except requests.RequestException as e:
+                    flash(f"Произошла ошибка при проверке: {e}", "danger")
+                    return redirect(url_for("show_url", id=id))
+
+                # Записываем данные проверки в базу
                 cur.execute(
-                    "INSERT INTO url_checks (url_id) VALUES "
-                    "(%s) RETURNING id, created_at",
-                    (id,),
+                    """
+                    INSERT INTO url_checks (url_id, status_code)
+                    VALUES (%s, %s)
+                    RETURNING id, created_at
+                    """,
+                    (id, status_code),
                 )
                 check = cur.fetchone()
                 flash("Check created successfully!", "success")
