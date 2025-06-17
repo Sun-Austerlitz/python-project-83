@@ -6,6 +6,7 @@ from psycopg2.extras import DictCursor
 from urllib.parse import urlparse
 import validators
 import requests
+from bs4 import BeautifulSoup
 
 
 load_dotenv()
@@ -29,10 +30,11 @@ def urls():
     if request.method == "POST":
         url = request.form.get("url")
         if not validators.url(url):
-            flash("Invalid URL. Please enter a valid URL.", "danger")
+            flash("Некорректный URL", "danger")
             return redirect(url_for("index"))
 
         normalized_url = urlparse(url).netloc
+
         try:
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
@@ -43,17 +45,23 @@ def urls():
                     )
                     url_id = cur.fetchone()
                     if url_id:
-                        flash("URL added successfully!", "success")
+                        flash("Страница успешно добавлено", "success")
                         return redirect(url_for("show_url", id=url_id[0]))
                     else:
                         cur.execute(
-                            "SELECT id FROM urls WHERE name = " "%s", (normalized_url,)
+                            "SELECT id FROM urls WHERE name = " "" "%s",
+                            (normalized_url,),
                         )
                         existing_url_id = cur.fetchone()
-                        flash("URL already exists.", "info")
-                        return redirect(url_for("show_url", id=existing_url_id[0]))
-        except Exception as e:
-            flash(f"Database error: {e}", "danger")
+                        flash("Страница уже существует", "info")
+                        return redirect(
+                            url_for(
+                                "show_url",
+                                id=existing_url_id[0],
+                            )
+                        )
+        except Exception:
+            flash("Database error:", "danger")
         return redirect(url_for("urls"))
 
     with get_db_connection() as conn:
@@ -68,7 +76,7 @@ def urls():
                 ORDER BY urls.created_at DESC
                 """
             )
-    urls = cur.fetchall()
+            urls = cur.fetchall()
     return render_template("urls.html", urls=urls)
 
 
@@ -80,7 +88,7 @@ def show_url(id):
             url = cur.fetchone()
             cur.execute(
                 """
-                SELECT id, status_code, created_at
+                SELECT id, status_code, h1, title, description, created_at
                 FROM url_checks
                 WHERE url_id = %s
                 ORDER BY created_at DESC
@@ -111,6 +119,21 @@ def create_check(id):
                     response = requests.get(f"http://{url['name']}")
                     response.raise_for_status()
                     status_code = response.status_code
+
+                    # Парсим HTML-ответ
+                    soup = BeautifulSoup(response.text, "html.parser")
+
+                    # Извлекаем данные SEO-анализа
+                    h1 = soup.find("h1").text if soup.find("h1") else None
+                    title = soup.find("title").text if soup.find("title") else None
+                    description = soup.find(
+                        "meta",
+                        attrs={"name": "description"},
+                    )
+                    description_content = (
+                        description["content"] if description else None
+                    )
+
                 except requests.RequestException as e:
                     flash(f"Произошла ошибка при проверке: {e}", "danger")
                     return redirect(url_for("show_url", id=id))
@@ -118,14 +141,14 @@ def create_check(id):
                 # Записываем данные проверки в базу
                 cur.execute(
                     """
-                    INSERT INTO url_checks (url_id, status_code)
-                    VALUES (%s, %s)
+                    INSERT INTO url_checks
+                    (url_id, status_code, h1, title, description)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING id, created_at
                     """,
-                    (id, status_code),
+                    (id, status_code, h1, title, description_content),
                 )
-                check = cur.fetchone()
-                flash("Check created successfully!", "success")
+                flash("Страница успешно проверена", "success")
     except Exception as e:
         flash(f"Database error: {e}", "danger")
     return redirect(url_for("show_url", id=id))

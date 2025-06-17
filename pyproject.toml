@@ -11,4 +11,5 @@ dependencies = [
     "psycopg2-binary",
     "validators",
     "requests",
+    "beautifulsoup4>=4.13.4",
 ]
